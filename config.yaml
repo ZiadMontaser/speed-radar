@@ -1,0 +1,83 @@
+# Motion Detection & Speed Monitoring System Configuration
+
+# Frame rate (frames per second)
+frame_rate: 25.0
+
+# ============ Motion Detection Parameters ============
+
+# Adaptive background learning rate (0.0 - 1.0)
+# Higher values = faster adaptation to scene changes
+alpha_background: 0.1
+
+# Adaptive threshold learning rate (0.0 - 1.0)
+# Controls how quickly threshold adjusts to scene characteristics
+alpha_threshold: 0.05
+
+# Initial threshold for background subtraction
+# Pixels with |I - B| > T are considered foreground
+initial_threshold: 15
+
+# Minimum threshold value (for adaptive threshold clamping)
+min_threshold: 5
+
+# Maximum threshold value (for adaptive threshold clamping)
+max_threshold: 50
+
+# ============ Shadow Detection Parameters ============
+
+# Shadow detection ratio bounds
+# A pixel is shadow if: shadow_ratio_min < I/B < shadow_ratio_max
+shadow_ratio_min: 0.23
+shadow_ratio_max: 0.95
+
+# ============ Morphological Operations ============
+
+# Kernel size for morphological operations (must be odd)
+# Larger kernels are more aggressive in noise removal
+morpho_kernel_size: 5
+
+# ============ Motion Thresholding ============
+
+# Minimum pixel difference for three-frame differencing
+# Helps filter out sensor noise
+motion_threshold: 3
+
+# ============ Segmentation Parameters ============
+
+# Minimum area (in pixels) for a blob to be considered an object
+min_area: 200
+
+# ============ Tracking Parameters ============
+
+# Whether to use Kalman filtering for centroid smoothing
+use_kalman: false
+
+# Maximum age of a track without new detections (in frames)
+# After this many frames, a track is considered exited
+max_track_age: 10
+
+# ============ Calibration & Speed ============
+
+# Pixel-to-meter scale (meters per pixel)
+# Set to None to use homography-based calibration instead
+scale_m_per_pixel: 0.02
+
+# Enable homography-based ground plane mapping
+homography_enabled: false
+
+# Speed violation threshold (km/h)
+speed_limit_kmph: 60
+
+# ============ Output & Logging ============
+
+# Folder where violation images and records are saved
+violation_save_folder: ./violations
+
+# Enable verbose logging
+verbose_logging: false
+
+# Save background model visualization for debugging
+save_background_model: false
+
+# Save threshold matrix visualization for debugging
+save_threshold_matrix: false

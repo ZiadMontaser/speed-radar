@@ -30,3 +30,10 @@ class Calibration:
     reference_points: Optional[
         List[Tuple[Tuple[float, float], Tuple[float, float]]]
     ] = None
+
+@dataclass
+class Region:
+    bbox: Tuple[int, int, int, int]  # (x, y, width, height)
+    centroid: Tuple[float, float]
+    area: int
+    mask: Optional[np.ndarray] = None

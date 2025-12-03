@@ -40,13 +40,18 @@ morpho_kernel_size: 5
 
 # Minimum pixel difference for three-frame differencing
 # Helps filter out sensor noise
-motion_threshold: 3
+motion_threshold: 30
 
 # ============ Segmentation Parameters ============
-
-# Minimum area (in pixels) for a blob to be considered an object
-min_area: 200
-
+segmentation:
+  min_area: 600             
+  max_iterations: 4
+  min_run_width: 3         
+  morph_open: 3
+  morph_close: 5
+  padding: 2              
+  merge_distance: 20     
+  bbox_overlap_thresh: 0.25 # merge if overlap fraction >= 0.25
 # ============ Tracking Parameters ============
 
 # Whether to use Kalman filtering for centroid smoothing

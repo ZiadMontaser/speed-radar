@@ -53,7 +53,7 @@ def example_video_processing():
     detector = MotionDetector(motion_config)
     
     # Open video (change to 0 for webcam)
-    video_path = "real_traffic/input-001.MOV"
+    video_path = "real_traffic/input-001.mp4"
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Error: Could not open video {video_path}")

@@ -7,15 +7,15 @@ frame_rate: 25.0
 
 # Adaptive background learning rate (0.0 - 1.0)
 # Higher values = faster adaptation to scene changes
-alpha_background: 0.1
+alpha_background: 0.02
 
 # Adaptive threshold learning rate (0.0 - 1.0)
 # Controls how quickly threshold adjusts to scene characteristics
-alpha_threshold: 0.05
+alpha_threshold: 0.1
 
 # Initial threshold for background subtraction
 # Pixels with |I - B| > T are considered foreground
-initial_threshold: 15
+initial_threshold: 25
 
 # Minimum threshold value (for adaptive threshold clamping)
 min_threshold: 5
@@ -27,7 +27,7 @@ max_threshold: 50
 
 # Shadow detection ratio bounds
 # A pixel is shadow if: shadow_ratio_min < I/B < shadow_ratio_max
-shadow_ratio_min: 0.23
+shadow_ratio_min: 0.5
 shadow_ratio_max: 0.95
 
 # ============ Morphological Operations ============
@@ -40,7 +40,7 @@ morpho_kernel_size: 5
 
 # Minimum pixel difference for three-frame differencing
 # Helps filter out sensor noise
-motion_threshold: 30
+motion_threshold: 15
 
 # ============ Segmentation Parameters ============
 segmentation:

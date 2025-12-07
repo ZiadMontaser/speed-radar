@@ -55,11 +55,26 @@ segmentation:
 # ============ Tracking Parameters ============
 
 # Whether to use Kalman filtering for centroid smoothing
-use_kalman: false
+use_kalman: true
 
 # Maximum age of a track without new detections (in frames)
 # After this many frames, a track is considered exited
 max_track_age: 10
+
+# Advanced tracking parameters
+tracking:
+  # Maximum centroid distance for matching (pixels)
+  max_distance: 100.0
+  
+  # Minimum trajectory length before computing speed (frames)
+  min_trajectory_length: 5
+  
+  # History buffer size for occlusion recovery (frames)
+  history_buffer_size: 5
+  
+  # Velocity weight in cost matrix (0.0 - 1.0)
+  # Higher values give more importance to velocity consistency
+  velocity_weight: 0.3
 
 # ============ Calibration & Speed ============
 

@@ -202,9 +202,58 @@ class MotionDetector:
         # Remove shadows from foreground mask
         shadow_removed_mask = foreground_mask.copy()
         shadow_removed_mask[shadow_mask] = 0
-        
-        return shadow_removed_mask
-    
+
+        return (shadow_removed_mask, shadow_mask.astype(np.uint8)*255)
+
+    def _detect_shadows_by_hsv(
+        self,
+        frame: np.ndarray,
+        foreground_mask: np.ndarray
+    ) -> np.ndarray:
+        """
+        Detect shadows using HSV color-space heuristics.
+
+        Shadow rule:
+            - V is low  (dark pixel)
+            - S is moderate/high (color preserved)
+            - pixel is inside the current foreground mask
+
+        Works even if background is binary.
+
+        Args:
+            frame: Input frame (BGR)
+            foreground_mask: Binary foreground mask (0 or 255)
+
+        Returns:
+            updated foreground mask with shadows removed
+        """
+
+        # Ensure frame is 3-channel BGR
+        if frame.ndim != 3 or frame.shape[2] != 3:
+            raise ValueError("frame must be a BGR image")
+
+        # Convert to HSV
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+
+        # Thresholds (tune for your environment)
+        V_SHADOW_MAX = 110      # dark pixel
+        S_SHADOW_MIN = 40      # still has some color
+
+        # Create shadow mask
+        shadow_mask = (
+            (v < V_SHADOW_MAX) &
+            (s > S_SHADOW_MIN) &
+            (foreground_mask > 0)
+        )
+
+        # Remove shadows from foreground mask
+        shadow_removed = foreground_mask.copy()
+        shadow_removed[shadow_mask] = 0
+
+        return shadow_removed
+
+
     def _masked_subtraction(
         self,
         bg_subtraction_mask: np.ndarray,
@@ -244,12 +293,13 @@ class MotionDetector:
         )
         
         # Opening: remove small noise
-        opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
         
         # Closing: fill small holes
-        closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel, iterations=1)
+        # mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
         
-        return closed
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+        return mask
     
     def update_background_and_threshold(
         self,
@@ -307,6 +357,55 @@ class MotionDetector:
         
         return self.background.copy(), self.threshold_matrix.copy()
     
+    def compute_foreground_mask_withSteps(
+        self,
+        frame: np.ndarray,
+        prev_frame: Optional[np.ndarray] = None,
+        prev2_frame: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """
+        Compute foreground mask using hybrid approach.
+        
+        Combines:
+        1. Three-frame differencing
+        2. Adaptive background subtraction
+        3. Shadow removal
+        4. Morphological cleaning
+        
+        Args:
+            frame: Current frame (HxWx3 BGR or HxW grayscale)
+            prev_frame: Previous frame (optional)
+            prev2_frame: Frame two steps back (optional)
+            
+        Returns:
+            Binary foreground mask (HxW uint8, 0 or 255)
+        """
+        # Initialize on first call
+        if not self.initialized:
+            self._initialize_models(frame)
+        
+        # Step 1: Three-frame differencing
+        three_frame_motion = self._compute_three_frame_difference(
+            frame, prev_frame, prev2_frame
+        )
+        
+        # Step 2: Background subtraction
+        bg_subtraction_mask, _ = self._background_subtraction(frame)
+        
+        # Step 3: Combine both methods
+        combined_mask = self._masked_subtraction(bg_subtraction_mask, three_frame_motion)
+        
+        # Step 4: Shadow detection and removal
+        shadow_removed_mask, shadow_mask = self._detect_shadows(frame, combined_mask)
+        
+        # Step 5: Morphological cleanup
+        cleaned_mask = self._apply_morphological_operations(shadow_removed_mask)
+        
+        # Step 6: Update background and threshold for next iteration
+        self.update_background_and_threshold(frame, cleaned_mask)
+        
+        return (three_frame_motion, bg_subtraction_mask, cleaned_mask, shadow_mask)
+    
     def compute_foreground_mask(
         self,
         frame: np.ndarray,
@@ -346,7 +445,7 @@ class MotionDetector:
         combined_mask = self._masked_subtraction(bg_subtraction_mask, three_frame_motion)
         
         # Step 4: Shadow detection and removal
-        shadow_removed_mask = self._detect_shadows(frame, combined_mask)
+        shadow_removed_mask, shadow_mask = self._detect_shadows(frame, combined_mask)
         
         # Step 5: Morphological cleanup
         cleaned_mask = self._apply_morphological_operations(shadow_removed_mask)
@@ -355,6 +454,7 @@ class MotionDetector:
         self.update_background_and_threshold(frame, cleaned_mask)
         
         return cleaned_mask
+
     
     def get_background(self) -> Optional[np.ndarray]:
         """Get current background model (as uint8 grayscale)"""

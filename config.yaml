@@ -7,7 +7,7 @@ frame_rate: 25.0
 
 # Adaptive background learning rate (0.0 - 1.0)
 # Higher values = faster adaptation to scene changes
-alpha_background: 0.1
+alpha_background: 0.01
 
 # Adaptive threshold learning rate (0.0 - 1.0)
 # Controls how quickly threshold adjusts to scene characteristics
@@ -27,7 +27,7 @@ max_threshold: 50
 
 # Shadow detection ratio bounds
 # A pixel is shadow if: shadow_ratio_min < I/B < shadow_ratio_max
-shadow_ratio_min: 0.23
+shadow_ratio_min: 0.15
 shadow_ratio_max: 0.95
 
 # ============ Morphological Operations ============

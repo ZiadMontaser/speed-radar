@@ -4,43 +4,22 @@
 frame_rate: 25.0
 
 # ============ Motion Detection Parameters ============
+# Motion Detection
+alpha_background: 0.05
+alpha_threshold: 0.03
 
-# Adaptive background learning rate (0.0 - 1.0)
-# Higher values = faster adaptation to scene changes
-alpha_background: 0.02
+initial_threshold: 30
+min_threshold: 10
+max_threshold: 60
 
-# Adaptive threshold learning rate (0.0 - 1.0)
-# Controls how quickly threshold adjusts to scene characteristics
-alpha_threshold: 0.1
+motion_threshold: 30
 
-# Initial threshold for background subtraction
-# Pixels with |I - B| > T are considered foreground
-initial_threshold: 25
-
-# Minimum threshold value (for adaptive threshold clamping)
-min_threshold: 5
-
-# Maximum threshold value (for adaptive threshold clamping)
-max_threshold: 50
-
-# ============ Shadow Detection Parameters ============
-
-# Shadow detection ratio bounds
-# A pixel is shadow if: shadow_ratio_min < I/B < shadow_ratio_max
-shadow_ratio_min: 0.5
+# Shadow Detection
+shadow_ratio_min: 0.25
 shadow_ratio_max: 0.95
 
-# ============ Morphological Operations ============
-
-# Kernel size for morphological operations (must be odd)
-# Larger kernels are more aggressive in noise removal
-morpho_kernel_size: 5
-
-# ============ Motion Thresholding ============
-
-# Minimum pixel difference for three-frame differencing
-# Helps filter out sensor noise
-motion_threshold: 15
+# Morphology
+morpho_kernel_size: 7
 
 # ============ Segmentation Parameters ============
 segmentation:

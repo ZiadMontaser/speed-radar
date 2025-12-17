@@ -7,116 +7,158 @@ from typing import List, Tuple, Optional
 from data_structures import Frame, TrackedObject, Calibration
 
 
-def _apply_homography(point: Tuple[float, float], H: np.ndarray) -> Tuple[float, float]:
+# =========================
+# Geometry helpers
+# =========================
+def _apply_homography(
+    point: Tuple[float, float], H: np.ndarray
+) -> Tuple[float, float]:
+    pt = np.array([[[point[0], point[1]]]], dtype=np.float32)
+    dst = cv2.perspectiveTransform(pt, H)
+    return float(dst[0][0][0]), float(dst[0][0][1])
 
-    pt_array = np.array([[[point[0], point[1]]]], dtype=np.float32)
-    dst_array = cv2.perspectiveTransform(pt_array, H)
-    return (dst_array[0][0][0], dst_array[0][0][1])
+
+def _unit_vector(vec: np.ndarray) -> np.ndarray:
+    n = np.linalg.norm(vec)
+    if n == 0:
+        return vec
+    return vec / n
 
 
+# =========================
+# SPEED COMPUTATION (OPTION B)
+# =========================
 def compute_speed(
-    tracked_obj: TrackedObject, calibration: Calibration, frame_rate: float
+    tracked_obj: TrackedObject,
+    calibration: Calibration,
+    frame_rate: float,
 ) -> float:
+    """
+    SDCS+ speed computation (Option B)
 
-    if not tracked_obj.trajectory or len(tracked_obj.trajectory) < 2:
+    Uses:
+    - Fr0 (entry frame)
+    - FrN (exit frame)
+    - Projected centroid displacement along motion direction
+    """
+
+    # ---- Must have exited scene
+    if tracked_obj.FrN is None:
         return 0.0
 
-    start_frame, start_pos = tracked_obj.trajectory[0]
-    end_frame, end_pos = tracked_obj.trajectory[-1]
+    fr0 = tracked_obj.Fr0
+    frn = tracked_obj.FrN
 
-    time_elapsed = (end_frame - start_frame) / frame_rate
-    if time_elapsed == 0:
+    if frn <= fr0:
         return 0.0
 
-    distance_meters = 0.0
+    time_elapsed = (frn - fr0) / frame_rate
+    if time_elapsed <= 0:
+        return 0.0
 
+    # ---- Entry & exit centroids
+    start_pos = tracked_obj.trajectory[0][1]
+    end_pos = tracked_obj.trajectory[-1][1]
+
+    # ---- Apply homography if exists
     if calibration.homography is not None:
-        real_start = _apply_homography(start_pos, calibration.homography)
-        real_end = _apply_homography(end_pos, calibration.homography)
-        distance_meters = np.sqrt(
-            (real_start[0] - real_end[0]) ** 2 + (real_start[1] - real_end[1]) ** 2
-        )
+        start_pos = _apply_homography(start_pos, calibration.homography)
+        end_pos = _apply_homography(end_pos, calibration.homography)
 
-    elif calibration.scale_m_per_pixel is not None:
-        px_dist = np.sqrt(
-            (start_pos[0] - end_pos[0]) ** 2 + (start_pos[1] - end_pos[1]) ** 2
-        )
-        distance_meters = px_dist * calibration.scale_m_per_pixel
+    # ---- Motion direction (unit vector)
+    delta = np.array(end_pos) - np.array(start_pos)
+    norm = np.linalg.norm(delta)
+    if norm == 0:
+        return 0.0
 
-    else:
-        raise RuntimeError("Calibration missing! Must provide scale or homography.")
+    direction = delta / norm
 
-    return distance_meters / time_elapsed
+    # ---- Project displacement
+    distance = np.dot(delta, direction)
 
+    # ---- Convert to meters if needed
+    if calibration.homography is None:
+        if calibration.scale_m_per_pixel is None:
+            raise RuntimeError("Calibration missing scale or homography")
+        distance *= calibration.scale_m_per_pixel
 
+    speed_m_s = abs(distance) / time_elapsed
+    return speed_m_s
+
+# =========================
+# VIOLATION CAPTURE (unchanged, correct)
+# =========================
 def capture_violation(
-    tracked_obj: TrackedObject, frame_buffer: List[Frame], config: dict
+    tracked_obj: TrackedObject,
+    frame_buffer: List[Frame],
+    config: dict,
 ) -> str:
+
     save_folder = config.get("violation_save_folder", "./violations")
     os.makedirs(save_folder, exist_ok=True)
 
-    start_f = tracked_obj.trajectory[0][0]
-    end_f = tracked_obj.trajectory[-1][0]
-    mid_f = int((start_f + end_f) / 2)
+    # --- Prefer center-crossing frame if available
+    if hasattr(tracked_obj, "center_cross_frame"):
+        target_frame_idx = tracked_obj.center_cross_frame
+    else:
+        target_frame_idx = int(
+            (tracked_obj.entry_frame + tracked_obj.exit_frame) / 2
+        )
 
-    best_frame = None
-    min_diff = float("inf")
-    for fr in frame_buffer:
-        diff = abs(fr.index - mid_f)
-        if diff < min_diff:
-            min_diff = diff
-            best_frame = fr
+    best_frame = min(
+        frame_buffer,
+        key=lambda f: abs(f.index - target_frame_idx),
+        default=frame_buffer[-1],
+    )
 
-    if best_frame is None:
-        best_frame = frame_buffer[-1]
+    cx, cy = tracked_obj.exit_centroid
+    _, _, w, h = tracked_obj.bbox
 
-    _, _, w_curr, h_curr = tracked_obj.bbox
-
-    target_centroid = None
-
-    for frame_idx, centroid in tracked_obj.trajectory:
-        if frame_idx == best_frame.index:
-            target_centroid = centroid
-            break
-
-    if target_centroid is None:
-        target_centroid = tracked_obj.trajectory[-1][1]
-
-    draw_x = int(target_centroid[0] - w_curr / 2)
-    draw_y = int(target_centroid[1] - h_curr / 2)
+    draw_x = int(cx - w / 2)
+    draw_y = int(cy - h / 2)
 
     img = best_frame.image.copy()
 
     cv2.rectangle(
-        img, (draw_x, draw_y), (draw_x + w_curr, draw_y + h_curr), (0, 0, 255), 2
+        img,
+        (draw_x, draw_y),
+        (draw_x + w, draw_y + h),
+        (0, 0, 255),
+        2,
     )
 
-    speed_kmph = (tracked_obj.speed_m_s * 3.6) if tracked_obj.speed_m_s else 0.0
+    speed_kmph = tracked_obj.speed_m_s * 3.6
     text = f"ID:{tracked_obj.id} {speed_kmph:.1f} km/h"
+
     cv2.putText(
-        img, text, (draw_x, draw_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
+        img,
+        text,
+        (draw_x, draw_y - 10),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (0, 0, 255),
+        2,
     )
 
     ts = int(time.time())
-    img_name = f"violation_{tracked_obj.id}_{ts}.jpg"
-    img_path = os.path.join(save_folder, img_name)
+    img_path = os.path.join(
+        save_folder, f"violation_{tracked_obj.id}_{ts}.jpg"
+    )
     cv2.imwrite(img_path, img)
 
-    meta_data = {
+    meta = {
         "id": tracked_obj.id,
         "speed_kmph": round(speed_kmph, 2),
+        "entry_frame": tracked_obj.entry_frame,
+        "exit_frame": tracked_obj.exit_frame,
         "timestamp": best_frame.timestamp,
-        "capture_frame_index": best_frame.index,
-        "bbox_in_image": [
-            draw_x,
-            draw_y,
-            w_curr,
-            h_curr,
-        ],
         "image_path": img_path,
     }
-    json_path = os.path.join(save_folder, f"violation_{tracked_obj.id}_{ts}.json")
+
+    json_path = os.path.join(
+        save_folder, f"violation_{tracked_obj.id}_{ts}.json"
+    )
     with open(json_path, "w") as f:
-        json.dump(meta_data, f, indent=4)
+        json.dump(meta, f, indent=4)
 
     return json_path

@@ -70,7 +70,7 @@ def main():
     detector = MotionDetector(motion_config)
     
     # Open video
-    video_path = 'real_traffic/input-001.mp4'
+    video_path = 'real_traffic/test3.mp4'
     cap = cv2.VideoCapture(video_path)
     
     if not cap.isOpened():
@@ -102,7 +102,7 @@ def main():
             mask = detector.compute_foreground_mask(frame, prev_frame, prev2_frame)
             
             # Segment foreground into regions
-            regions = segment_foreground(mask, config)
+            regions = segment_foreground(mask)
             
             # Draw detections
             output = draw_detections(frame, regions, colors)

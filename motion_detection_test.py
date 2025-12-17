@@ -53,7 +53,7 @@ def example_video_processing():
     detector = MotionDetector(motion_config)
     
     # Open video (change to 0 for webcam)
-    video_path = "real_traffic/input-001.mp4"
+    video_path = "datasets/YTDown.com_YouTube_Relaxing-highway-traffic_Media_nt3D26lrkho_001_720p.mp4"
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Error: Could not open video {video_path}")
@@ -79,8 +79,8 @@ def example_video_processing():
     
     # Window name and wait time
     win_name = "Original | Modified"
-    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(win_name, min(1600, width * 2), min(900, height))  # adjust initial window size
+    # Keep aspect ratio; allow manual resize while preserving proportions
+    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     
     print("Processing frames... (press 'q' or ESC to quit)")
     start_time = time.time()
@@ -94,33 +94,40 @@ def example_video_processing():
             # optional: you may want to resize frames here if extremely large for real-time
             # frame = cv2.resize(frame, (width, height))
 
-            h, w = frame.shape[:2]
-            half_h = h // 2
-            half_w = w // 2
-            frame = frame[half_h:h, half_w:w]
-            frame = cv2.resize(frame, (960, 540))  # ~720p
-            height, width = frame.shape[:2]
+            # h, w = frame.shape[:2]
+            # half_h = h // 2
+            # half_w = w // 2
+            # frame = frame[half_h:h, half_w:w]
+            # frame = cv2.resize(frame, (960, 540))  # ~720p
+            # height, width = frame.shape[:2]
             
             # Compute foreground mask (assumed to be single-channel uint8 mask)
-            mask = detector.compute_foreground_mask(frame, prev_frame, prev2_frame)
-            if mask is None:
-                mask = np.zeros((height, width), dtype=np.uint8)
+            three_frame_motion, bg_subtraction_mask, combined_mask, shadow_mask = detector.compute_foreground_mask_withSteps(frame, prev_frame, prev2_frame)
             
             # Create a colored visualization of mask and blend with frame
-            mask_color = cv2.applyColorMap(mask, cv2.COLORMAP_JET)  # returns BGR
-            frame_vis = cv2.addWeighted(frame, 0.7, mask_color, 0.3, 0)
+            three_frame_motion_color = cv2.applyColorMap(three_frame_motion, cv2.COLORMAP_JET)
+            bg_subtraction_mask_color = cv2.applyColorMap(bg_subtraction_mask, cv2.COLORMAP_JET)
+            combined_mask_color = cv2.applyColorMap(combined_mask, cv2.COLORMAP_JET)
+            shadow_mask_color = cv2.cvtColor(shadow_mask.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+            background_rgb = cv2.cvtColor(detector.background.astype(np.uint8), cv2.COLOR_GRAY2BGR)
             
             # Add overlay text (frame index, motion pixels, fps estimate)
-            elapsed = time.time() - start_time
-            processing_fps = (frame_idx / elapsed) if elapsed > 0 else 0.0
-            cv2.putText(frame_vis, f"Real-time FPS: {processing_fps:.1f}", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
             
-            # combine horizontally
-            side_by_side = cv2.hconcat([frame, frame_vis])
-            
-            # Show the combined window
-            cv2.imshow(win_name, side_by_side)
+            # Combine in a 2x2 grid with separators to preserve aspect
+            separator_v = np.ones((height, 5, 3), dtype=np.uint8) * 255
+            row_top = cv2.hconcat([frame, separator_v, background_rgb])
+            row_middle = cv2.hconcat([three_frame_motion_color, separator_v, bg_subtraction_mask_color])
+            row_bottom = cv2.hconcat([combined_mask_color, separator_v, shadow_mask_color])
+            separator_h = np.ones((5, row_top.shape[1], 3), dtype=np.uint8) * 255
+            grid = cv2.vconcat([row_top, separator_h, row_middle, separator_h, row_bottom])
+
+            # Show at native resolution; keep window aspect ratio
+            if frame_idx == 0:
+                cv2.setWindowProperty(win_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+                cv2.resizeWindow(win_name, grid.shape[1], grid.shape[0])
+
+            cv2.imshow(win_name, grid)
 
             
             # Update frame history

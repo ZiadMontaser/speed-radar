@@ -3,6 +3,9 @@
 # Frame rate (frames per second)
 frame_rate: 25.0
 
+# Frame height in pixels (used for perspective correction)
+frame_height: 1080
+
 # ============ Motion Detection Parameters ============
 
 # Adaptive background learning rate (0.0 - 1.0)
@@ -79,8 +82,9 @@ tracking:
 # ============ Calibration & Speed ============
 
 # Pixel-to-meter scale (meters per pixel)
-# Set to None to use homography-based calibration instead
-scale_m_per_pixel: 0.02
+# Calibrated for UK motorway: lane dash = 3m, lane width = 3.65m
+# Estimated from middle of frame (perspective causes variation)
+scale_m_per_pixel: 0.05
 
 # Enable homography-based ground plane mapping
 homography_enabled: false
@@ -88,10 +92,27 @@ homography_enabled: false
 # Speed violation threshold (km/h)
 speed_limit_kmph: 60
 
+
+
 # ============ Output & Logging ============
 
 # Folder where violation images and records are saved
 violation_save_folder: ./violations
+
+# ============ Capture Settings ============
+
+# Padding around the car bounding box in the violation image (pixels)
+# Higher values = more context around the car
+capture_padding: 70
+
+# Number of frames to average for enhanced image quality
+capture_frame_window: 3
+
+# Save full-context image (entire frame) in addition to car-only crop
+# Set to true for legal/documentation needs
+save_full_context: false
+
+# ============ Debug & Logging ============
 
 # Enable verbose logging
 verbose_logging: false
@@ -101,3 +122,4 @@ save_background_model: false
 
 # Save threshold matrix visualization for debugging
 save_threshold_matrix: false
+

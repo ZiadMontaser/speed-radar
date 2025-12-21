@@ -38,74 +38,49 @@ def compute_speed_paper_method(
     config: dict,
 ) -> float:
     """
-    Compute speed using paper's methodology:
-    speed = distance / (N * frame_duration)
-
-    Where:
-    - distance: cumulative path length along trajectory (not straight-line)
-    - N: number of frames from Fr0 to FrN
-    - frame_duration: 1 / frame_rate
-
-    This method is more accurate for non-linear trajectories.
+    Compute speed using straight-line distance from first to last trajectory point.
+    
+    Speed = distance / time
     """
-    min_trajectory_length = config.get("min_trajectory_length", 3)
-
-    if (
-        not tracked_obj.trajectory
-        or len(tracked_obj.trajectory) < min_trajectory_length
-    ):
+    min_trajectory_length = config.get("tracking", {}).get("min_trajectory_length", 5)
+    
+    if not tracked_obj.trajectory or len(tracked_obj.trajectory) < min_trajectory_length:
         return 0.0
-
-    # Use Fr0 and FrN if available, otherwise use first and last trajectory points
-    start_frame = (
-        tracked_obj.Fr0 if tracked_obj.Fr0 is not None else tracked_obj.trajectory[0][0]
-    )
-    end_frame = (
-        tracked_obj.FrN
-        if tracked_obj.FrN is not None
-        else tracked_obj.trajectory[-1][0]
-    )
-
-    # Calculate time elapsed in seconds
-    N = end_frame - start_frame
-    if N == 0:
+    
+    # Use first and last trajectory points
+    first_frame_idx, first_pos = tracked_obj.trajectory[0]
+    last_frame_idx, last_pos = tracked_obj.trajectory[-1]
+    
+    # Calculate time span
+    frame_span = last_frame_idx - first_frame_idx
+    if frame_span <= 0:
         return 0.0
+    
+    time_elapsed = frame_span / frame_rate
+    
+    # Calculate distance (straight line)
+    if calibration.homography is not None:
+        real_first = _apply_homography(first_pos, calibration.homography)
+        real_last = _apply_homography(last_pos, calibration.homography)
+        distance_meters = np.sqrt(
+            (real_last[0] - real_first[0]) ** 2 + (real_last[1] - real_first[1]) ** 2
+        )
+    elif calibration.scale_m_per_pixel is not None:
+        px_dist = np.sqrt(
+            (last_pos[0] - first_pos[0]) ** 2 + (last_pos[1] - first_pos[1]) ** 2
+        )
+        distance_meters = px_dist * calibration.scale_m_per_pixel
+    else:
+        raise RuntimeError("Calibration missing! Must provide scale or homography.")
 
-    frame_duration = 1.0 / frame_rate
-    time_elapsed = N * frame_duration
-
-    # Calculate cumulative distance along trajectory path
-    total_distance_meters = 0.0
-
-    for i in range(1, len(tracked_obj.trajectory)):
-        frame_idx_prev, pos_prev = tracked_obj.trajectory[i - 1]
-        frame_idx_curr, pos_curr = tracked_obj.trajectory[i]
-
-        # Only count segments within Fr0 to FrN range
-        if frame_idx_prev < start_frame or frame_idx_curr > end_frame:
-            continue
-
-        if calibration.homography is not None:
-            # Transform both points to real-world coordinates
-            real_prev = _apply_homography(pos_prev, calibration.homography)
-            real_curr = _apply_homography(pos_curr, calibration.homography)
-            segment_distance = np.sqrt(
-                (real_curr[0] - real_prev[0]) ** 2 + (real_curr[1] - real_prev[1]) ** 2
-            )
-        elif calibration.scale_m_per_pixel is not None:
-            # Calculate pixel distance and convert to meters
-            px_dist = np.sqrt(
-                (pos_curr[0] - pos_prev[0]) ** 2 + (pos_curr[1] - pos_prev[1]) ** 2
-            )
-            segment_distance = px_dist * calibration.scale_m_per_pixel
-        else:
-            raise RuntimeError("Calibration missing! Must provide scale or homography.")
-
-        total_distance_meters += segment_distance
-
-    # Speed = distance / time
-    speed_m_s = total_distance_meters / time_elapsed if time_elapsed > 0 else 0.0
-
+    # Calculate speed
+    speed_m_s = distance_meters / time_elapsed if time_elapsed > 0 else 0.0
+    
+    # Sanity check: reject unrealistic speeds (> 200 km/h)
+    max_speed_m_s = 200 / 3.6
+    if speed_m_s > max_speed_m_s:
+        return 0.0
+    
     return speed_m_s
 
 
@@ -163,11 +138,11 @@ def capture_violation_paper_method(
     """
     Capture violation image using paper's multi-frame enhancement approach.
 
-    Key improvements over v1:
-    1. Captures multiple frames around the object's center position
-    2. Applies multi-frame averaging for better image quality
-    3. Uses Fr0 and FrN information for better metadata
-    4. Includes more detailed trajectory information
+    Key improvements:
+    1. Saves car-only crop as primary image (fast, focused)
+    2. Applies multi-frame averaging for enhanced close-up
+    3. Optional full-context save for legal/documentation needs
+    4. Configurable padding around the car bbox
     """
     save_folder = config.get("violation_save_folder", "./violations")
     os.makedirs(save_folder, exist_ok=True)
@@ -209,6 +184,9 @@ def capture_violation_paper_method(
         target_frame = frame_buffer[-1]
         capture_frames = [target_frame.image]
 
+    # Get frame dimensions
+    frame_height, frame_width = target_frame.image.shape[:2]
+
     # Get bbox and centroid for the target frame
     x_curr, y_curr, w_curr, h_curr = tracked_obj.bbox
 
@@ -227,61 +205,118 @@ def capture_violation_paper_method(
     draw_x = int(target_centroid[0] - w_curr / 2)
     draw_y = int(target_centroid[1] - h_curr / 2)
 
-    # Create main visualization image
-    img = target_frame.image.copy()
+    # Get speed info
+    speed_kmph = (tracked_obj.speed_m_s * 3.6) if tracked_obj.speed_m_s else 0.0
 
-    # Draw bounding box
+    # === PRIMARY IMAGE: Car-only crop with padding ===
+    padding = config.get("capture_padding", 50)
+    
+    # Calculate crop region with padding (clamped to image bounds)
+    crop_x1 = max(0, draw_x - padding)
+    crop_y1 = max(0, draw_y - padding)
+    crop_x2 = min(frame_width, draw_x + w_curr + padding)
+    crop_y2 = min(frame_height, draw_y + h_curr + padding)
+    
+    # Crop the car region
+    car_crop = target_frame.image[crop_y1:crop_y2, crop_x1:crop_x2].copy()
+    
+    # Adjust bbox coordinates relative to crop
+    bbox_in_crop_x = draw_x - crop_x1
+    bbox_in_crop_y = draw_y - crop_y1
+    
+    # Draw bounding box on crop
     cv2.rectangle(
-        img, (draw_x, draw_y), (draw_x + w_curr, draw_y + h_curr), (0, 0, 255), 3
+        car_crop,
+        (bbox_in_crop_x, bbox_in_crop_y),
+        (bbox_in_crop_x + w_curr, bbox_in_crop_y + h_curr),
+        (0, 0, 255), 2
     )
-
-    # Draw trajectory path
-    trajectory_points = [
-        (int(centroid[0]), int(centroid[1]))
-        for frame_idx, centroid in tracked_obj.trajectory
-        if start_f <= frame_idx <= end_f
-    ]
-
+    
+    # Draw trajectory on crop (only points visible in crop)
+    trajectory_points = []
+    for frame_idx, centroid in tracked_obj.trajectory:
+        if start_f <= frame_idx <= end_f:
+            # Adjust to crop coordinates
+            tx = int(centroid[0]) - crop_x1
+            ty = int(centroid[1]) - crop_y1
+            # Only include if within crop bounds
+            if 0 <= tx < (crop_x2 - crop_x1) and 0 <= ty < (crop_y2 - crop_y1):
+                trajectory_points.append((tx, ty))
+    
     if len(trajectory_points) > 1:
         for i in range(1, len(trajectory_points)):
-            cv2.line(
-                img, trajectory_points[i - 1], trajectory_points[i], (0, 255, 255), 2
-            )
-
-    # Add speed and ID text
-    speed_kmph = (tracked_obj.speed_m_s * 3.6) if tracked_obj.speed_m_s else 0.0
-    text_lines = [
-        f"ID: {tracked_obj.id}",
-        f"Speed: {speed_kmph:.1f} km/h",
-        f"Frames: {start_f}-{end_f}",
-    ]
-
-    y_offset = draw_y - 15
-    for line in reversed(text_lines):
-        cv2.putText(
-            img, line, (draw_x, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
-        )
-        y_offset -= 25
-
-    # Save main image
+            cv2.line(car_crop, trajectory_points[i - 1], trajectory_points[i], (0, 255, 255), 2)
+    
+    # Add text annotation on crop
+    text_y = max(15, bbox_in_crop_y - 10)
+    cv2.putText(
+        car_crop,
+        f"ID:{tracked_obj.id} {speed_kmph:.1f}km/h",
+        (max(0, bbox_in_crop_x), text_y),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
+    )
+    
+    # Save primary car-only image
     ts = int(time.time())
     img_name = f"violation_{tracked_obj.id}_{ts}.jpg"
     img_path = os.path.join(save_folder, img_name)
-    cv2.imwrite(img_path, img)
+    cv2.imwrite(img_path, car_crop)
 
-    # Create enhanced close-up using multi-frame averaging
+    # === ENHANCED IMAGE: Multi-frame averaged close-up ===
+    enhanced_path = None
     if len(capture_frames) > 1:
-        enhanced_bbox = (draw_x, draw_y, w_curr, h_curr)
-        enhanced_img = enhance_capture_image(capture_frames, enhanced_bbox)
+        # Use the car bbox for enhancement (with small padding)
+        enhance_padding = 10
+        enhance_x1 = max(0, draw_x - enhance_padding)
+        enhance_y1 = max(0, draw_y - enhance_padding)
+        enhance_bbox = (enhance_x1, enhance_y1, w_curr + 2*enhance_padding, h_curr + 2*enhance_padding)
+        enhanced_img = enhance_capture_image(capture_frames, enhance_bbox)
 
         if enhanced_img is not None and enhanced_img.size > 0:
             enhanced_name = f"violation_{tracked_obj.id}_{ts}_enhanced.jpg"
             enhanced_path = os.path.join(save_folder, enhanced_name)
             cv2.imwrite(enhanced_path, enhanced_img)
-        else:
-            enhanced_path = None
-    else:
-        enhanced_path = None
+
+    # === OPTIONAL: Full context image ===
+    context_path = None
+    if config.get("save_full_context", False):
+        context_img = target_frame.image.copy()
+        
+        # Draw bounding box on full frame
+        cv2.rectangle(
+            context_img,
+            (draw_x, draw_y),
+            (draw_x + w_curr, draw_y + h_curr),
+            (0, 0, 255), 3
+        )
+        
+        # Draw full trajectory
+        full_traj_points = [
+            (int(centroid[0]), int(centroid[1]))
+            for frame_idx, centroid in tracked_obj.trajectory
+            if start_f <= frame_idx <= end_f
+        ]
+        if len(full_traj_points) > 1:
+            for i in range(1, len(full_traj_points)):
+                cv2.line(context_img, full_traj_points[i - 1], full_traj_points[i], (0, 255, 255), 2)
+        
+        # Add text
+        text_lines = [
+            f"ID: {tracked_obj.id}",
+            f"Speed: {speed_kmph:.1f} km/h",
+            f"Frames: {start_f}-{end_f}",
+        ]
+        y_offset = draw_y - 15
+        for line in reversed(text_lines):
+            cv2.putText(
+                context_img, line, (draw_x, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
+            )
+            y_offset -= 25
+        
+        context_name = f"violation_{tracked_obj.id}_{ts}_context.jpg"
+        context_path = os.path.join(save_folder, context_name)
+        cv2.imwrite(context_path, context_img)
 
     # Create metadata
     meta_data = {
@@ -294,11 +329,13 @@ def capture_violation_paper_method(
         "FrN": end_f,
         "frames_tracked": end_f - start_f,
         "trajectory_length": len(tracked_obj.trajectory),
-        "bbox_in_image": [draw_x, draw_y, w_curr, h_curr],
+        "bbox_in_frame": [draw_x, draw_y, w_curr, h_curr],
+        "crop_region": [crop_x1, crop_y1, crop_x2 - crop_x1, crop_y2 - crop_y1],
         "centroid": [float(target_centroid[0]), float(target_centroid[1])],
         "image_path": img_path,
         "enhanced_image_path": enhanced_path,
-        "method": "paper_based_v2",
+        "context_image_path": context_path,
+        "method": "paper_based_v3",
     }
 
     json_path = os.path.join(save_folder, f"violation_{tracked_obj.id}_{ts}.json")

@@ -1,0 +1,31 @@
+{
+    "id": 6,
+    "speed_kmph": 65.13,
+    "speed_m_s": 18.09,
+    "timestamp": 29.84,
+    "capture_frame_index": 746,
+    "Fr0": 742,
+    "FrN": 751,
+    "frames_tracked": 9,
+    "trajectory_length": 5,
+    "bbox_in_frame": [
+        774,
+        374,
+        71,
+        63
+    ],
+    "crop_region": [
+        704,
+        304,
+        150,
+        176
+    ],
+    "centroid": [
+        809.8457641601562,
+        405.722900390625
+    ],
+    "image_path": "./violations\\violation_6_1766348227.jpg",
+    "enhanced_image_path": "./violations\\violation_6_1766348227_enhanced.jpg",
+    "context_image_path": null,
+    "method": "paper_based_v3"
+}

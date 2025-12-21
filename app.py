@@ -81,7 +81,7 @@ def extract_video_metadata(video_path):
     }
 
 
-def process_video(video_path, config, max_frames, progress_callback):
+def process_video(video_path, config, max_frames, progress_callback, frame_display_callback=None):
     """Main video processing pipeline"""
     cap = cv2.VideoCapture(video_path)
     
@@ -196,6 +196,10 @@ def process_video(video_path, config, max_frames, progress_callback):
         prev_frame = frame_img.copy()
         frame_idx += 1
         progress_callback(frame_idx, frames_to_process)
+        
+        # Display frame every 100 frames for smooth real-time preview
+        if frame_display_callback and frame_idx % 1 == 0:
+            frame_display_callback(vis_frame)
     
     cap.release()
     out.release()
@@ -254,6 +258,7 @@ def create_statistics_charts(violations, stats):
     # Statistics summary
     stats_text = f"""
     **Processing Summary**
+    - Total Objects Tracked: {stats.get('total_objects_tracked', 0)}
     - Total Violations: {stats.get('total_violations', 0)}
     - Frames Processed: {stats.get('frames_processed', 0)}
     - Exited Tracks: {stats.get('exited_tracks', 0)}
@@ -309,9 +314,6 @@ st.markdown("""
 An AI-powered traffic monitoring and speed violation detection system using computer vision.
 Detects vehicles, tracks their motion, computes speeds, and captures violations.
 """)
-
-# Demo GIF placeholder
-st.info("🎬 Demo visualization and system overview (demo GIF would be displayed here)")
 
 # Key features
 st.markdown("""
@@ -420,8 +422,24 @@ if uploaded_file is not None:
             progress_bar.progress(progress)
             status_text.text(f"Processing: {current}/{total} frames ({progress*100:.1f}%)")
         
+        # Create placeholder for real-time frame display
+        frame_display_col1, frame_display_col2 = st.columns([3, 1])
+        with frame_display_col1:
+            frame_placeholder = st.empty()
+        with frame_display_col2:
+            frame_info = st.empty()
+        
+        current_frame_count = {"count": 0}
+        
+        def display_frame(frame):
+            current_frame_count["count"] += 1
+            # Convert BGR to RGB for display
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_placeholder.image(frame_rgb, use_container_width=True)
+            frame_info.metric("Current Frame", current_frame_count["count"])
+        
         with st.spinner("Processing video..."):
-            result, error = process_video(video_path, config, max_frames, update_progress)
+            result, error = process_video(video_path, config, max_frames, update_progress, display_frame)
         
         if error:
             st.error(f"Processing failed: {error}")
@@ -445,6 +463,8 @@ if uploaded_file is not None:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Violations", stats['total_violations'])
+        with col2:
+            st.metric("Objects Tracked", stats['total_objects_tracked'])
         with col3:
             st.metric("Avg Speed", f"{np.mean([v['speed_kmph'] for v in violations]):.1f} km/h" if violations else "N/A")
         with col4:

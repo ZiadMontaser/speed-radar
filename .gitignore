@@ -222,3 +222,4 @@ __marimo__/
 
 datasets/*
 !datasets/datasets.txt
+violations/*

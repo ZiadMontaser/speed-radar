@@ -21,7 +21,7 @@ from motion_detection import MotionDetector, MotionDetectionConfig
 from src.segmentation.segmentation import segment_foreground
 from src.tracking.tracking import Tracker
 from speed_capture import capture_violation_paper_method, compute_speed_paper_method
-from src.data_structures import Frame, Calibration, TrackedObject
+from common.data_structures import Frame, Calibration, TrackedObject
 
 
 class FrameBuffer:

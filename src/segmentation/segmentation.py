@@ -7,9 +7,8 @@ foreground objects in a binary mask.
 
 import numpy as np
 from typing import List
-
-from src.data_structures import Region
 import cv2
+from common.data_structures import Region
 import yaml
 
 with open('config.yaml', 'r') as f:

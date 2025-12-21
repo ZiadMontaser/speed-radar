@@ -14,16 +14,17 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
 
-# Import pipeline modules (assumes they're in same directory)
-try:
-    from motion_detection import MotionDetector, MotionDetectionConfig
-    from src.segmentation.segmentation import segment_foreground
-    from src.tracking.tracking import Tracker
-    from speed_capture import capture_violation_paper_method, compute_speed_paper_method, calculate_trajectory_metrics
-    from src.data_structures import Frame, Calibration, TrackedObject
-except ImportError:
-    st.error("Pipeline modules not found. Ensure motion_detection.py, segmentation.py, tracking.py, speed_capture.py, and data_structures.py are in the same directory.")
-    st.stop()
+# Import pipeline modules (relative to src directory)
+# try:
+from motion_detection import MotionDetector, MotionDetectionConfig
+from segmentation import segment_foreground
+from tracking import Tracker
+from speed_capture import capture_violation_paper_method, compute_speed_paper_method, calculate_trajectory_metrics
+from common.data_structures import Frame, Calibration, TrackedObject
+# except ImportError as e:
+#     st.error(f"Pipeline modules not found: {e}")
+#     st.error("Ensure motion_detection, segmentation, tracking , speed_capture , and data_structures.py exist in src ")
+#     st.stop()
 
 
 class FrameBuffer:

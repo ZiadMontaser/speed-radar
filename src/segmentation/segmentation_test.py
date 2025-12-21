@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 from typing import List, Tuple
 
-from src.data_structures import Region
+from common.data_structures import Region
 from motion_detection import MotionDetector, MotionDetectionConfig
 from src.segmentation.segmentation import segment_foreground
 

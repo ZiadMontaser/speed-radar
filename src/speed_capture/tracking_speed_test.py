@@ -23,7 +23,7 @@ from speed_capture import (
     capture_violation_paper_method,
     calculate_trajectory_metrics,
 )
-from src.data_structures import Frame, TrackedObject, Calibration, Region
+from common.data_structures import Frame, TrackedObject, Calibration, Region
 
 
 def load_config_yaml(config_path: str = "config.yaml") -> dict:

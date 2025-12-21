@@ -1,0 +1,16 @@
+[server]
+# Maximum upload size in MB (set to a large number or use maxUploadSize = 0 for unlimited in some versions)
+maxUploadSize = 2000
+
+# Port configuration (optional)
+port = 8501
+
+# Enable CORS if needed
+enableCORS = false
+
+# Enable XSRF protection
+enableXsrfProtection = true
+
+[browser]
+# Automatically open browser on start
+gatherUsageStats = false

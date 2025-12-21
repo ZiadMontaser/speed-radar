@@ -21,7 +21,7 @@ import os
 import json
 import time
 from typing import List, Tuple, Optional
-from src.data_structures import Frame, TrackedObject, Calibration
+from common.data_structures import Frame, TrackedObject, Calibration
 
 
 def _apply_homography(point: Tuple[float, float], H: np.ndarray) -> Tuple[float, float]:

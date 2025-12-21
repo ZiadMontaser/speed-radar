@@ -3,7 +3,7 @@ from typing import List, Dict, Optional, Tuple, Set
 from dataclasses import replace
 from scipy.optimize import linear_sum_assignment
 import cv2
-from src.data_structures import Region, TrackedObject
+from common.data_structures import TrackedObject, Frame, Region
 
 
 class KalmanTracker:

@@ -3,8 +3,8 @@ streamlit>=1.32.0
 streamlit-lottie>=0.0.5
 
 # Computer Vision & Image Processing (compatible with Python 3.13)
-opencv-python>=4.9.0
-opencv-contrib-python>=4.9.0
+# Use opencv-python-headless for Streamlit Cloud (no GUI dependencies)
+opencv-python-headless>=4.9.0
 
 # Data Processing & Analysis (compatible with Python 3.13)
 numpy>=1.26.0

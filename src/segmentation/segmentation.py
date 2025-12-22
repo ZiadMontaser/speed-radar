@@ -10,6 +10,7 @@ import cv2
 from typing import List, Optional
 from pathlib import Path
 from common.data_structures import Region
+from common import image_processing as ip
 import yaml
 
 # Load default config from project root
@@ -179,6 +180,7 @@ def segment_foreground(mask: np.ndarray, config: Optional[dict] = None) -> List[
     padding = seg_config.get("padding", 2)
     max_iter = seg_config["max_iterations"]
 
+    # num, labels = ip.connected_components(mask)
     num, labels = cv2.connectedComponents(mask)
 
     regions = []

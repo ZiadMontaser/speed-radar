@@ -23,11 +23,13 @@ import time
 from pathlib import Path
 from typing import List, Tuple, Optional
 from common.data_structures import Frame, TrackedObject, Calibration
+from common import image_processing as ip
 
 
 def _apply_homography(point: Tuple[float, float], H: np.ndarray) -> Tuple[float, float]:
     """Transform a point using homography matrix."""
     pt_array = np.array([[[point[0], point[1]]]], dtype=np.float32)
+    # dst_array = ip.perspective_transform(pt_array, H)
     dst_array = cv2.perspectiveTransform(pt_array, H)
     return (dst_array[0][0][0], dst_array[0][0][1])
 
@@ -127,6 +129,8 @@ def enhance_capture_image(
     averaged = np.mean(cropped, axis=0).astype(np.uint8)
 
     # Optional: Apply unsharp masking for enhancement
+    # blurred = ip.gaussian_blur(averaged, (3, 3), 1.0)
+    # sharpened = ip.add_weighted(averaged, 1.5, blurred, -0.5, 0)
     blurred = cv2.GaussianBlur(averaged, (3, 3), 1.0)
     sharpened = cv2.addWeighted(averaged, 1.5, blurred, -0.5, 0)
 

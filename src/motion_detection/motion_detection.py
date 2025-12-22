@@ -14,6 +14,7 @@ import numpy as np
 import cv2
 from typing import Optional
 from dataclasses import dataclass
+from common import image_processing as ip
 
 
 @dataclass
@@ -93,8 +94,11 @@ class MotionDetector:
 
     def _cleanup(self, mask):
         k = self.config.morpho_kernel_size
+        # kernel = ip.get_structuring_element(ip.MORPH_ELLIPSE, (k, k))
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
 
+        # mask = ip.morphology_ex(mask, ip.MORPH_CLOSE, kernel, iterations=2)
+        # mask = ip.morphology_ex(mask, ip.MORPH_OPEN, kernel, iterations=1)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
 
@@ -135,13 +139,17 @@ class MotionDetector:
 
         bg_fg = self._background_subtraction(curr)
 
-        masked_bg = cv2.bitwise_and(bg_fg, motion_mask)
+        masked_bg = np.bitwise_and(bg_fg, motion_mask)
 
         two_frame = self._two_frame_diff(curr, prev)
 
         support_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
         motion_support = cv2.dilate(motion_mask, support_kernel, iterations=2)
         two_frame = cv2.bitwise_and(two_frame, motion_support)
+
+        # support_kernel = ip.get_structuring_element(ip.MORPH_ELLIPSE, (11, 11))
+        # motion_support = ip.dilate(motion_mask, support_kernel, iterations=2)
+        # two_frame = np.bitwise_and(two_frame, motion_support)
 
         fg = masked_bg.copy()
         fg[two_frame > 0] = 255

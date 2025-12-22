@@ -318,18 +318,19 @@ config = load_config()
 # ============ SECTION 1: LANDING PAGE ============
 st.title("🚗 Speed Detection Camera System")
 st.markdown("""
-An AI-powered traffic monitoring and speed violation detection system using computer vision.
-Detects vehicles, tracks their motion, computes speeds, and captures violations.
-""")
+A computer vision-based traffic monitoring and speed violation detection system implementing the SDCS (Speed Detection Camera System) methodology.
+Uses classical image processing algorithms for motion detection, vehicle segmentation, tracking, and speed computation.
+""") 
 
 # Key features
 st.markdown("""
 ### Key Features
-- **Real-time Motion Detection**: Adaptive background model with shadow removal
-- **Vehicle Tracking**: Multi-object tracking with Kalman filtering
-- **Accurate Speed Computation**: Paper-based methodology with homography support
-- **Violation Capture**: Multi-frame enhanced image capture with metadata
-- **Detailed Reporting**: Statistics, charts, and downloadable violation records
+- **Smart Vehicle Detection**: Automatically identifies and highlights moving vehicles in your video
+- **Vehicle Separation**: Accurately distinguishes individual vehicles even in dense traffic
+- **Continuous Tracking**: Follows each vehicle throughout its journey on screen
+- **Accurate Speed Measurement**: Calculates real vehicle speed with calibrated distance settings
+- **Clear Violation Photos**: Captures high-quality images of speeding vehicles for evidence
+- **Detailed Reports**: Provides complete statistics, charts, and downloadable violation records
 """)
 
 # ============ SECTION 2: VIDEO UPLOAD ============

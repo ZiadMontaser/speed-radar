@@ -20,6 +20,7 @@ import numpy as np
 import os
 import json
 import time
+from pathlib import Path
 from typing import List, Tuple, Optional
 from common.data_structures import Frame, TrackedObject, Calibration
 
@@ -145,6 +146,10 @@ def capture_violation_paper_method(
     4. Configurable padding around the car bbox
     """
     save_folder = config.get("violation_save_folder", "./violations")
+    # Convert to absolute path relative to project root
+    if not os.path.isabs(save_folder):
+        project_root = Path(__file__).parent.parent.parent
+        save_folder = str(project_root / save_folder)
     os.makedirs(save_folder, exist_ok=True)
 
     if not tracked_obj.trajectory:
@@ -318,19 +323,19 @@ def capture_violation_paper_method(
         context_path = os.path.join(save_folder, context_name)
         cv2.imwrite(context_path, context_img)
 
-    # Create metadata
+    # Create metadata (convert all numpy types to native Python types for JSON serialization)
     meta_data = {
-        "id": tracked_obj.id,
-        "speed_kmph": round(speed_kmph, 2),
-        "speed_m_s": round(tracked_obj.speed_m_s, 2) if tracked_obj.speed_m_s else 0.0,
-        "timestamp": target_frame.timestamp,
-        "capture_frame_index": target_frame.index,
-        "Fr0": start_f,
-        "FrN": end_f,
-        "frames_tracked": end_f - start_f,
-        "trajectory_length": len(tracked_obj.trajectory),
-        "bbox_in_frame": [draw_x, draw_y, w_curr, h_curr],
-        "crop_region": [crop_x1, crop_y1, crop_x2 - crop_x1, crop_y2 - crop_y1],
+        "id": int(tracked_obj.id),
+        "speed_kmph": round(float(speed_kmph), 2),
+        "speed_m_s": round(float(tracked_obj.speed_m_s), 2) if tracked_obj.speed_m_s else 0.0,
+        "timestamp": float(target_frame.timestamp),
+        "capture_frame_index": int(target_frame.index),
+        "Fr0": int(start_f),
+        "FrN": int(end_f),
+        "frames_tracked": int(end_f - start_f),
+        "trajectory_length": int(len(tracked_obj.trajectory)),
+        "bbox_in_frame": [int(draw_x), int(draw_y), int(w_curr), int(h_curr)],
+        "crop_region": [int(crop_x1), int(crop_y1), int(crop_x2 - crop_x1), int(crop_y2 - crop_y1)],
         "centroid": [float(target_centroid[0]), float(target_centroid[1])],
         "image_path": img_path,
         "enhanced_image_path": enhanced_path,

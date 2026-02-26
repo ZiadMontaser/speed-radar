@@ -158,14 +158,20 @@ def process_video(video_path, config, max_frames, progress_callback, frame_displ
                 if speed_kmph > config['speed_limit_kmph'] and not obj.captured_img_ref:
                     try:
                         json_path = capture_violation_paper_method(obj, list(frame_buffer.buffer), config)
-                        obj.captured_img_ref = json_path
-                        
-                        # Record violation
-                        with open(json_path, 'r') as f:
-                            violation_data = json.load(f)
-                        violation_records.append(violation_data)
+                        if json_path and os.path.exists(json_path):
+                            obj.captured_img_ref = json_path
+                            
+                            # Record violation
+                            with open(json_path, 'r') as f:
+                                violation_data = json.load(f)
+                            violation_records.append(violation_data)
+                            print(f"✓ Violation captured: ID {obj.id} at {speed_kmph:.1f} km/h")
+                        else:
+                            print(f"⚠ Failed to capture violation for ID {obj.id}")
                     except Exception as e:
-                        print(f"Error capturing violation: {e}")
+                        print(f"❌ Error capturing violation ID {obj.id}: {e}")
+                        import traceback
+                        traceback.print_exc()
         
         # Visualization
         vis_frame = frame_img.copy()
@@ -312,18 +318,19 @@ config = load_config()
 # ============ SECTION 1: LANDING PAGE ============
 st.title("🚗 Speed Detection Camera System")
 st.markdown("""
-An AI-powered traffic monitoring and speed violation detection system using computer vision.
-Detects vehicles, tracks their motion, computes speeds, and captures violations.
-""")
+A computer vision-based traffic monitoring and speed violation detection system implementing the SDCS (Speed Detection Camera System) methodology.
+Uses classical image processing algorithms for motion detection, vehicle segmentation, tracking, and speed computation.
+""") 
 
 # Key features
 st.markdown("""
 ### Key Features
-- **Real-time Motion Detection**: Adaptive background model with shadow removal
-- **Vehicle Tracking**: Multi-object tracking with Kalman filtering
-- **Accurate Speed Computation**: Paper-based methodology with homography support
-- **Violation Capture**: Multi-frame enhanced image capture with metadata
-- **Detailed Reporting**: Statistics, charts, and downloadable violation records
+- **Smart Vehicle Detection**: Automatically identifies and highlights moving vehicles in your video
+- **Vehicle Separation**: Accurately distinguishes individual vehicles even in dense traffic
+- **Continuous Tracking**: Follows each vehicle throughout its journey on screen
+- **Accurate Speed Measurement**: Calculates real vehicle speed with calibrated distance settings
+- **Clear Violation Photos**: Captures high-quality images of speeding vehicles for evidence
+- **Detailed Reports**: Provides complete statistics, charts, and downloadable violation records
 """)
 
 # ============ SECTION 2: VIDEO UPLOAD ============
@@ -436,7 +443,7 @@ if uploaded_file is not None:
             current_frame_count["count"] += 1
             # Convert BGR to RGB for display
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_placeholder.image(frame_rgb, use_container_width=True)
+            frame_placeholder.image(frame_rgb, width='stretch')
             frame_info.metric("Current Frame", current_frame_count["count"])
         
         with st.spinner("Processing video..."):
@@ -477,6 +484,21 @@ if uploaded_file is not None:
             st.subheader("Violations Table")
             st.dataframe(violations_df, use_container_width=True)
             
+            # Display violation images if available
+            st.subheader("Violation Images")
+            cols = st.columns(3)
+            for idx, violation in enumerate(violations):
+                img_path = violation.get('image_path', '')
+                if img_path and os.path.exists(img_path):
+                    with cols[idx % 3]:
+                        try:
+                            img = cv2.imread(img_path)
+                            if img is not None:
+                                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                                st.image(img_rgb, caption=f"ID: {violation.get('id', 'N/A')} - {violation.get('speed_kmph', 0):.1f} km/h", width='stretch')
+                        except Exception as e:
+                            st.warning(f"Could not load image: {os.path.basename(img_path)}")
+            
             # Charts
             st.subheader("Statistics & Visualization")
             charts = create_statistics_charts(violations, stats)
@@ -495,41 +517,50 @@ if uploaded_file is not None:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("⬇️ Download Video", use_container_width=True):
-                with open(result['output_video'], 'rb') as f:
-                    st.download_button(
-                        label="Download Processed Video",
-                        data=f.read(),
-                        file_name=f"processed_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4",
-                        mime="video/mp4"
-                    )
+            # Download processed video
+            with open(result['output_video'], 'rb') as f:
+                video_data = f.read()
+            st.download_button(
+                label="⬇️ Download Video",
+                data=video_data,
+                file_name=f"processed_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4",
+                mime="video/mp4",
+                use_container_width=True
+            )
         
         with col2:
-            if st.button("📦 Download Violations (ZIP)", use_container_width=True):
-                violations_folder = config.get('violation_save_folder', './violations')
-                zip_path = download_violations_zip(violations_folder)
-                if zip_path:
-                    with open(zip_path, 'rb') as f:
-                        st.download_button(
-                            label="Download Violations ZIP",
-                            data=f.read(),
-                            file_name=f"violations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
-                            mime="application/zip"
-                        )
-                else:
-                    st.warning("No violations folder found")
+            # Download violations ZIP
+            violations_folder = config.get('violation_save_folder', './violations')
+            zip_path = download_violations_zip(violations_folder)
+            if zip_path and os.path.exists(zip_path):
+                with open(zip_path, 'rb') as f:
+                    zip_data = f.read()
+                st.download_button(
+                    label="📦 Download Violations (ZIP)",
+                    data=zip_data,
+                    file_name=f"violations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                    mime="application/zip",
+                    use_container_width=True
+                )
+            else:
+                st.button("📦 Download Violations (ZIP)", disabled=True, use_container_width=True)
+                st.caption("No violations to download")
         
         with col3:
-            if st.button("📊 Download Report (CSV)", use_container_width=True):
-                if violations:
-                    violations_df = create_violations_report(violations)
-                    csv = violations_df.to_csv(index=False)
-                    st.download_button(
-                        label="Download Report CSV",
-                        data=csv,
-                        file_name=f"violations_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
+            # Download CSV report
+            if violations:
+                violations_df = create_violations_report(violations)
+                csv = violations_df.to_csv(index=False)
+                st.download_button(
+                    label="📊 Download Report (CSV)",
+                    data=csv,
+                    file_name=f"violations_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            else:
+                st.button("📊 Download Report (CSV)", disabled=True, use_container_width=True)
+                st.caption("No violations to report")
 
 else:
     st.info("👆 Upload a video file to get started")

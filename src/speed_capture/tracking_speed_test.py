@@ -1,14 +1,3 @@
-"""
-Integrated Tracking & Speed Capture Test
-Member C (Tracking) + Member D (Speed Capture) Integration
-
-This script demonstrates the complete pipeline:
-1. Motion detection
-2. Segmentation
-3. Tracking with persistent IDs and trajectories
-4. Speed calculation and violation capture
-"""
-
 import numpy as np
 import cv2
 import yaml

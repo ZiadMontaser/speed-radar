@@ -1,10 +1,3 @@
-"""
-Segmentation Module (SDCS-aligned)
-
-Iterative horizontal + vertical scan segmentation
-based on empty scan lines inside candidate regions.
-"""
-
 import numpy as np
 import cv2
 from typing import List, Optional
@@ -13,17 +6,12 @@ from common.data_structures import Region
 from common import image_processing as ip
 import yaml
 
-# Load default config from project root
 _config_path = Path(__file__).parent.parent.parent / "config.yaml"
 with open(_config_path, "r") as f:
     _default_config = yaml.safe_load(f)
 
 SEG = _default_config["segmentation"]
 
-
-# -------------------------
-# Utility
-# -------------------------
 def has_gap(projection, min_gap):
     count = 0
     for v in projection:
@@ -36,9 +24,6 @@ def has_gap(projection, min_gap):
     return False
 
 
-# -------------------------
-# Horizontal scan
-# -------------------------
 def horizontal_scan(mask, bbox):
     x, y, w, h = bbox
     region = mask[y:y+h, x:x+w]
@@ -68,9 +53,6 @@ def horizontal_scan(mask, bbox):
     return splits if len(splits) > 1 else [bbox]
 
 
-# -------------------------
-# Vertical scan
-# -------------------------
 def vertical_scan(mask, bbox):
     x, y, w, h = bbox
     region = mask[y:y+h, x:x+w]
@@ -100,12 +82,7 @@ def vertical_scan(mask, bbox):
     return splits if len(splits) > 1 else [bbox]
 
 
-# Merge vertical scans
-
 def merge_vertical_fragments(regions):
-    """
-    Merge vertically stacked regions that likely belong to the same vehicle
-    """
     merged = []
     used = set()
 
@@ -126,7 +103,6 @@ def merge_vertical_fragments(regions):
             x2, y2, w2, h2 = r2.bbox
             cx2, cy2 = r2.centroid
 
-            # --- Conditions for SAME CAR ---
             horizontally_close = abs(cx1 - cx2) < max(w1, w2) * 0.5
             vertically_close = abs(cy1 - cy2) < max(h1, h2) * 1.2
             similar_width = min(w1, w2) / max(w1, w2) > 0.6
@@ -135,7 +111,6 @@ def merge_vertical_fragments(regions):
                 group.append(r2)
                 used.add(j)
 
-        # ---- Merge group into one region
         if len(group) == 1:
             merged.append(group[0])
         else:
@@ -168,19 +143,14 @@ def merge_vertical_fragments(regions):
 
     return merged
 
-
-# -------------------------
-# Main segmentation
-# -------------------------
 def segment_foreground(mask: np.ndarray, config: Optional[dict] = None) -> List[Region]:
-    # Use provided config or fall back to default
+
     seg_config = config.get("segmentation", SEG) if config else SEG
 
     min_area = seg_config["min_area"]
     padding = seg_config.get("padding", 2)
     max_iter = seg_config["max_iterations"]
 
-    # num, labels = ip.connected_components(mask)
     num, labels = cv2.connectedComponents(mask)
 
     regions = []

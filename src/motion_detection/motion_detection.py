@@ -1,15 +1,3 @@
-"""
-Motion Detection Module - Hybrid SDCS Implementation (FIXED)
-
-Implements:
-- Three-frame differencing (motion validation)
-- Adaptive background modeling B_n(x,y)
-- Adaptive threshold matrix T_n(x,y)
-- Masked background subtraction
-- Two-frame differencing with SOFT spatial support
-- Shadow detection & removal
-"""
-
 import numpy as np
 import cv2
 from typing import Optional
